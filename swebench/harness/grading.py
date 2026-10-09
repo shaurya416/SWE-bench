@@ -63,8 +63,9 @@ def _resolve_case(case: str, sm: dict[str, str]) -> str | None:
 
     676 expected ids in SWE-bench_Verified are truncated mid-parameter (issue #290),
     e.g. ``test_ogip_grammar_fail[log(photon``. For those only, prefix-match when the
-    candidates agree on pass-vs-fail; exact ids keep exact-match semantics. Requires
-    ``[`` to outnumber ``]`` so free-form non-pytest names never reach the fallback.
+    candidates agree on pass, skip or fail; exact ids keep exact-match semantics.
+    Requires ``[`` to outnumber ``]`` so free-form non-pytest names never reach the
+    fallback.
 
     TODO(john-b-yang): wrong placement — a pytest/Verified-specific data defect
     encoded in grading, which is meant to be benchmark-agnostic.
@@ -75,11 +76,21 @@ def _resolve_case(case: str, sm: dict[str, str]) -> str | None:
         return case
     if case.count("[") > case.count("]"):
         matches = [k for k in sm if k.startswith(case)]
-        # PASSED and XFAIL grade identically, so compare outcome not raw status
-        passing = {TestStatus.PASSED.value, TestStatus.XFAIL.value}
-        if matches and len({sm[k] in passing for k in matches}) == 1:
+        # compare outcome, not raw status: PASSED and XFAIL grade identically, but
+        # SKIPPED does not grade like FAILED -- P2P counts a skip as maintained, so
+        # a skipped candidate standing in for a failed one would hide a regression
+        if matches and len({_outcome(sm[k]) for k in matches}) == 1:
             return matches[0]
     return None
+
+
+def _outcome(status: str) -> str:
+    """Collapse a status to what grading distinguishes: pass, skip, or fail."""
+    if status in (TestStatus.PASSED.value, TestStatus.XFAIL.value):
+        return "pass"
+    if status == TestStatus.SKIPPED.value:
+        return "skip"
+    return "fail"
 
 
 def test_passed(case: str, sm: dict[str, str]) -> bool:

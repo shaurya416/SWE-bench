@@ -23,6 +23,19 @@ Added:
 * `swebench submit package|publish|register|verify` build and check a leaderboard
   submission, and `swebench submit hf` publishes to a HuggingFace bucket.
 
+Fixed:
+* `swebench report` re-graded the gold patches whatever the run had evaluated. On a
+  model's run it found no test output, re-graded nothing, and rewrote `results.json`
+  with every instance as an error; on a run id that did not exist it still wrote a
+  report. It now re-grades the patches the run recorded, and takes `-m/--model` for a
+  run holding several models.
+* `swebench submit verify` passed an entry whose `resolved` list named an instance
+  outside the split, provided a directory of that name shipped with the logs, or
+  named an instance twice. Both inflate the resolved count, and both now fail.
+* A truncated parametrized PASS_TO_PASS id matching one skipped and one failed test
+  was graded as maintained, hiding the failure. Candidates that disagree on skip
+  versus fail now leave the id unresolved, as other disagreements already did.
+
 ## [5.0.1] - 8/17/2026
 
 Fixed:

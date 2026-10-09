@@ -7,10 +7,12 @@ matching while preserving exact-match semantics for well-formed ids.
 
 from swebench.harness.constants import TestStatus
 from swebench.harness.grading import test_failed as grade_failed
+from swebench.harness.grading import test_maintained as grade_maintained
 from swebench.harness.grading import test_passed as grade_passed
 
 PASSED = TestStatus.PASSED.value
 FAILED = TestStatus.FAILED.value
+SKIPPED = TestStatus.SKIPPED.value
 XFAIL = TestStatus.XFAIL.value
 
 
@@ -62,6 +64,29 @@ def test_truncated_id_ambiguous_mixed_status_conservative():
     }
     assert not grade_passed(truncated, sm)
     assert grade_failed(truncated, sm)
+
+
+def test_truncated_p2p_id_skipped_and_failed_is_not_maintained():
+    """A skipped candidate must not stand in for a failed one.
+
+    Both are "not passing", but P2P grades them differently: a skip is maintained,
+    a failure is a regression. pytest's summary lists SKIPPED before FAILED, so
+    taking the first match graded the regression as maintained.
+    """
+    truncated = "tests/test_a.py::test_x[log(photon"
+    sm = {
+        truncated + " / s)]": SKIPPED,
+        truncated + " / m**2 s)]": FAILED,
+    }
+    assert not grade_maintained(truncated, sm)
+    assert grade_failed(truncated, sm)
+
+
+def test_truncated_p2p_id_all_skipped_is_maintained():
+    truncated = "tests/test_a.py::test_x[log(photon"
+    sm = {truncated + " / s)]": SKIPPED, truncated + " / m**2 s)]": SKIPPED}
+    assert grade_maintained(truncated, sm)
+    assert not grade_passed(truncated, sm)
 
 
 def test_truncated_failed_id_reports_failed():

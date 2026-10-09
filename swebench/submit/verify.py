@@ -14,6 +14,7 @@ import json
 import shutil
 import subprocess
 import tempfile
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -36,6 +37,8 @@ class VerifyResult:
     false_positives: list[str] = field(default_factory=list)  # claimed, does not hold
     false_negatives: list[str] = field(default_factory=list)  # holds, not claimed
     unbacked_claims: list[str] = field(default_factory=list)  # claimed, no log to check
+    unknown_claims: list[str] = field(default_factory=list)  # claimed, not in the split
+    duplicate_claims: list[str] = field(default_factory=list)  # claimed more than once
     ungraded: list[str] = field(default_factory=list)  # no log, and not claimed either
 
     @property
@@ -43,11 +46,17 @@ class VerifyResult:
         """An unbacked claim counts as a failure.
 
         Shipping no log for an instance you claim to have resolved is the cheapest way
-        to inflate a score, so it cannot pass. A missing log for an instance that is
-        *not* claimed is only incomplete data, and does not fail the check.
+        to inflate a score, so it cannot pass. So is claiming an instance the split does
+        not contain, or claiming one twice: the resolved count is the length of the
+        list, and neither can be re-graded into it. A missing log for an instance that
+        is *not* claimed is only incomplete data, and does not fail the check.
         """
         return not (
-            self.false_positives or self.false_negatives or self.unbacked_claims
+            self.false_positives
+            or self.false_negatives
+            or self.unbacked_claims
+            or self.unknown_claims
+            or self.duplicate_claims
         )
 
 
@@ -132,7 +141,8 @@ def verify(
     results_path = entry_dir / "results" / "results.json"
     if not results_path.is_file():
         raise VerifyError(f"no results/results.json in {entry_dir}")
-    claimed = set(json.loads(results_path.read_text()).get("resolved", []))
+    claimed_list = json.loads(results_path.read_text()).get("resolved", [])
+    claimed = set(claimed_list)
 
     from datasets import load_dataset
 
@@ -142,6 +152,12 @@ def verify(
         i["instance_id"]: i for i in load_dataset(SPLIT_DATASETS[split], split="test")
     }
     result = VerifyResult(submission_id=entry_dir.resolve().name, split=split)
+    # checked against the list rather than the set: an id outside the split is skipped
+    # by the walk below, and a repeated one collapses, yet both still count as resolved
+    result.unknown_claims = sorted(claimed - set(instances))
+    result.duplicate_claims = sorted(
+        iid for iid, n in Counter(claimed_list).items() if n > 1
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -173,6 +189,6 @@ def verify(
         # A claim with no artifact directory at all. Must be collected before the
         # temp clone is removed.
         present = {d.name for d in logs.iterdir() if d.is_dir()}
-        result.unbacked_claims.extend(sorted(claimed - present))
+        result.unbacked_claims.extend(sorted((claimed & set(instances)) - present))
 
     return result

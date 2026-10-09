@@ -87,11 +87,18 @@ def report_command(
     ),
     split: Optional[str] = typer.Option(None, "-s", "--split"),
     instance_ids: Optional[list[str]] = typer.Option(None, "-i", "--instance"),
+    model: Optional[str] = typer.Option(
+        None,
+        "-m",
+        "--model",
+        help="Model dir inside the run (auto-detected if only one)",
+    ),
 ):
     """Re-grade a finished run from its saved logs, without starting containers.
 
     Useful after a log-parser fix: the test output is already on disk, so the
-    verdicts can be recomputed in seconds.
+    verdicts can be recomputed in seconds. The patches graded are the ones the run
+    recorded, so a model's run is re-graded as that model's, not as gold.
 
     [yellow][bold]Examples:[/bold][/yellow]
 
@@ -101,6 +108,13 @@ def report_command(
     """
     from swebench.harness.run_evaluation import main as run_evaluation
     from swebench.harness.run_evaluation import read_run_metadata
+    from swebench.submit.package import PackageError
+
+    try:
+        predictions = _run_predictions(run_id, model)
+    except PackageError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
 
     recorded = read_run_metadata(run_id) or {}
     if dataset is None:
@@ -119,7 +133,7 @@ def report_command(
         dataset_name=resolve_dataset(dataset),
         split=split,
         instance_ids=list(instance_ids) if instance_ids else None,
-        predictions_path="gold",
+        predictions_path=None,
         max_workers=1,
         open_file_limit=4096,
         run_id=run_id,
@@ -129,4 +143,33 @@ def report_command(
         # a run made against a task repo has to be re-graded against the same tests,
         # or the dataset's copy silently overrides them and the verdict changes
         task_repo=recorded.get("task_repo"),
+        predictions=predictions,
     )
+
+
+def _run_predictions(run_id: str, model: Optional[str]) -> list[dict]:
+    """The predictions a finished run graded, read back from its own artifacts.
+
+    Each instance directory keeps the patch the run applied. Re-grading any other
+    predictions -- the gold patches, for a model's run -- finds no test output under
+    their model's directory, re-grades nothing, and rewrites results.json as though
+    every instance had errored.
+    """
+    from swebench.harness import run_evaluation
+    from swebench.submit.package import PackageError, resolve_run_dir
+
+    resolved = resolve_run_dir(run_evaluation.RUN_EVALUATION_LOG_DIR / run_id, model)
+    predictions = [
+        {
+            "instance_id": inst.name,
+            "model_name_or_path": resolved.model,
+            "model_patch": (inst / "patch.diff").read_text(),
+        }
+        for inst in sorted(resolved.logs_dir.iterdir())
+        if (inst / "patch.diff").is_file()
+    ]
+    if not predictions:
+        raise PackageError(
+            f"{resolved.logs_dir.resolve()} holds no patches to re-grade"
+        )
+    return predictions

@@ -708,9 +708,12 @@ def main(
     rewrite_reports: bool,
     modal: bool,
     task_repo: str | None = None,
+    predictions: list | None = None,
 ):
     """
     Run evaluation harness for the given dataset and predictions.
+
+    ``predictions``, when given, is used as-is instead of reading ``predictions_path``.
     """
     if dataset_name == "SWE-bench/SWE-bench_Multimodal" and split == "test":
         print(
@@ -731,9 +734,10 @@ def main(
     # set open file limit
     assert len(run_id) > 0, "Run ID must be provided"
     # load predictions as map of instance_id to prediction
-    predictions = get_predictions_from_file(
-        predictions_path, dataset_name, split, task_repo, instance_ids
-    )
+    if predictions is None:
+        predictions = get_predictions_from_file(
+            predictions_path, dataset_name, split, task_repo, instance_ids
+        )
     predictions = {pred["instance_id"]: pred for pred in predictions}
     write_run_metadata(run_id, dataset_name, split, task_repo)
 

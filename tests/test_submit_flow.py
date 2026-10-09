@@ -221,6 +221,36 @@ def test_verify_catches_a_claim_with_no_log_at_all(packaged, graded):
     assert result.unbacked_claims == ["ghost__ghost-9"]
 
 
+def test_verify_catches_a_claim_outside_the_split(packaged, graded):
+    """A claimed id the split does not contain still counts toward the resolved total.
+
+    Shipping a directory named after it used to be enough to pass: the walk skips
+    ids outside the split, and the no-log check only looked for the directory.
+    """
+    logs = packaged / "submission-repo" / "logs"
+    (logs / "other__other-1").mkdir()
+    (logs / "other__other-1" / "patch.diff").write_text("P")
+    (logs / "other__other-1" / "test_output.txt").write_text("o")
+    results = packaged / "entry" / "results" / "results.json"
+    results.write_text(json.dumps({"resolved": ["a__a-1", "other__other-1"]}))
+    graded(["a__a-1"], holds=["a__a-1", "other__other-1"])
+    result = ver.verify(packaged / "entry", "verified", logs_dir=logs)
+    assert not result.ok
+    assert result.unknown_claims == ["other__other-1"]
+    assert result.unbacked_claims == []
+
+
+def test_verify_catches_a_claim_listed_twice(packaged, graded):
+    results = packaged / "entry" / "results" / "results.json"
+    results.write_text(json.dumps({"resolved": ["a__a-1", "a__a-1"]}))
+    graded(["a__a-1"], holds=["a__a-1"])
+    result = ver.verify(
+        packaged / "entry", "verified", logs_dir=packaged / "submission-repo" / "logs"
+    )
+    assert not result.ok
+    assert result.duplicate_claims == ["a__a-1"]
+
+
 def test_verify_reports_an_unclaimed_resolving_instance(packaged, graded):
     (packaged / "submission-repo" / "logs" / "b__b-2").mkdir()
     (packaged / "submission-repo" / "logs" / "b__b-2" / "patch.diff").write_text("P")

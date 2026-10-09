@@ -381,6 +381,10 @@ def verify_command(
     typer.echo(f"{result.submission_id}: re-graded {result.n_checked} instance(s)")
     for iid in result.unbacked_claims:
         typer.echo(f"  claimed resolved, but ships no log:  {iid}")
+    for iid in result.unknown_claims:
+        typer.echo(f"  claimed resolved, not in {result.split}: {iid}")
+    for iid in result.duplicate_claims:
+        typer.echo(f"  claimed resolved more than once:     {iid}")
     if result.ungraded:
         typer.echo(
             f"  {len(result.ungraded)} unclaimed instance(s) had no usable log (not a failure)"

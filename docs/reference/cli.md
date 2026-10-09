@@ -63,6 +63,10 @@ The dataset comes from the run itself, recorded at evaluation time in
 `logs/evaluation/<run_id>/run.json`. Pass `-d` for older runs, or to grade against a
 different dataset on purpose.
 
+The patches graded are the ones the run recorded in each instance's `patch.diff`, so
+a model's run is re-graded as that model's. A run holding several models needs
+`-m/--model` to pick one.
+
 ```bash
 swebench report my-run                     # dataset taken from the run itself
 swebench report my-run -d multimodal -i grommet__grommet-6282
