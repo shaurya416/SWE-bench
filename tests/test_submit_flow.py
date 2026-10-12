@@ -323,6 +323,39 @@ def test_to_https_normalizes_ssh_remotes():
 
     assert to_https("git@github.com:Owner/Repo.git") == "https://github.com/Owner/Repo"
     assert slug("git@github.com:Owner/Repo.git") == "Owner/Repo"
+    assert (
+        to_https("ssh://git@github.com:22/Owner/Repo.git")
+        == "https://github.com/Owner/Repo"
+    )
+
+
+def test_to_https_drops_credentials():
+    from swebench.submit._git import slug, to_https
+
+    token = "https://x-access-token:ghp_secret@github.com/Owner/Repo.git"
+    assert to_https(token) == "https://github.com/Owner/Repo"
+    assert slug(token) == "Owner/Repo"
+    # a local path or file:// remote is not a web URL and is left alone
+    assert to_https("/srv/git/repo.git") == "/srv/git/repo"
+
+
+def test_publish_keeps_a_remotes_credentials_out_of_the_entry(packaged, tmp_path):
+    """metadata.yaml is committed to a public PR, so a token in the remote must not
+    travel with the URL into `assets`."""
+    remote = tmp_path / "remote.git"
+    git(tmp_path, "init", "-q", "--bare", str(remote))
+    token_url = "https://x-access-token:ghp_secret@github.com/me/my-run.git"
+    repo = packaged / "submission-repo"
+    git(repo, "init", "-q", "-b", "main")
+    # pushes to the token URL land in the local bare repo; nothing leaves the machine
+    git(repo, "config", f"url.{remote}.pushInsteadOf", token_url)
+
+    result = pub.publish(packaged, remote=token_url)
+
+    assert result.repo_url == "https://github.com/me/my-run"
+    text = (packaged / "entry" / "metadata.yaml").read_text()
+    assert "ghp_secret" not in text
+    assert yaml.safe_load(text)["assets"]["repo"] == "https://github.com/me/my-run"
 
 
 # --- split and id are derived, not repeated -----------------------------------

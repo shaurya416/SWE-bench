@@ -60,9 +60,14 @@ TIMEOUT_TRAILER_RE = re.compile(r"Timeout error: \d+ seconds exceeded\.\s*\Z")
 
 # MARK: Utility functions
 def parse_test_exit_code(content: str) -> int | None:
-    """Return the recorded test command exit status, or None if absent."""
-    match = TEST_EXIT_CODE_RE.search(content)
-    return int(match.group(1)) if match else None
+    """Return the recorded test command exit status, or None if absent.
+
+    The last line wins: the eval script writes its own after the test command has
+    exited, so an earlier one was printed by the tests -- a patch can print a forged
+    zero next to its forged PASSED lines.
+    """
+    codes = TEST_EXIT_CODE_RE.findall(content)
+    return int(codes[-1]) if codes else None
 
 
 def _resolve_case(case: str, sm: dict[str, str]) -> str | None:

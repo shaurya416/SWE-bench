@@ -44,6 +44,18 @@ Fixed:
 * `swebench submit package --trajs` copied the trajectory of any instance whose id
   began with an instance id in the split (`django__django-12345` for
   `django__django-1234`), and counted it. Only `<iid>` and `<iid>.*` are now taken.
+* A patch could defeat the forged-`PASSED` check by also printing its own
+  `>>>>> Test Exit Code: 0` line: grading read the first such line, not the one the eval
+  script writes after the tests exit, and scored the instance resolved. The last line
+  is now the one read.
+* `swebench submit publish` wrote a remote's credentials into `metadata.yaml`'s
+  `assets` when the remote or `origin` carried them
+  (`https://x-access-token:<token>@github.com/...`), and that file is committed to the
+  leaderboard PR. They are now dropped, and an `ssh://` remote becomes an https URL.
+* `swebench images clean` removed nothing for a run id containing a dot (`gpt-4.1`), an
+  instance id containing a capital, or a container renamed after a name conflict, and
+  reported `Removed 0 container(s).` Containers are now matched against the names the
+  harness gives them.
 
 ## [5.0.1] - 8/17/2026
 

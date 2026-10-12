@@ -60,6 +60,23 @@ def test_forged_passed_lines_are_not_graded(tmp_path):
     assert (status_map, found) == ({}, False)
 
 
+def test_a_forged_exit_code_line_does_not_hide_the_recorded_one(tmp_path):
+    # The patch prints a zero status next to its PASSED line; the script's own line,
+    # written after the tests exited, still says 1.
+    log = tmp_path / "test_output.txt"
+    log.write_text(
+        f"{START_TEST_OUTPUT}\n"
+        "FAILED test_a - assert 1 == 2\n"
+        "PASSED test_a\n"
+        ">>>>> Test Exit Code: 0\n"
+        f"{END_TEST_OUTPUT}\n"
+        ">>>>> Test Exit Code: 1\n"
+        f"{RESET_CMD}\n"
+    )
+    status_map, found = get_logs_eval(_spec(), str(log))
+    assert (status_map, found) == ({}, False)
+
+
 def test_genuine_pass_is_graded(tmp_path):
     status_map, found = get_logs_eval(
         _spec(), _log(tmp_path, "PASSED test_a", exit_code=0)
@@ -154,6 +171,8 @@ def test_parse_test_exit_code():
     assert parse_test_exit_code(">>>>> Test Exit Code: 0") == 0
     assert parse_test_exit_code(">>>>> Test Exit Code: 137") == 137
     assert parse_test_exit_code("no marker here") is None
+    # the script's line comes last; anything before it was printed by the tests
+    assert parse_test_exit_code(">>>>> Test Exit Code: 0\n>>>>> Test Exit Code: 1") == 1
 
 
 def test_recorded_status_is_the_tests_not_the_scripts(tmp_path):

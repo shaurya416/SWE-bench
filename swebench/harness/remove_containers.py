@@ -1,4 +1,5 @@
 import json
+import re
 from argparse import ArgumentParser
 
 from swebench.harness.run_evaluation import _docker_client
@@ -6,6 +7,27 @@ from swebench.harness.run_evaluation import _docker_client
 """
 Script for removing containers associated with specified instance IDs.
 """
+
+PREFIX = "sweb.eval."
+
+
+def _matches(name: str, instance_ids: set[str], run_id: str | None) -> bool:
+    """Whether a container belongs to the instances and run asked for.
+
+    run_instance names a container sweb.eval.<instance_id, lowercased>.<run_id>, plus
+    .<unix time> when a leftover container already held that name. Instance ids and
+    run ids can both contain dots (mrdoob__three.js-1, gpt-4.1), so the name is matched
+    against what was asked for rather than split at a dot. The suffix is the ten-digit
+    time, not any number, so gpt-4 does not also take the containers of a gpt-4.1 run.
+    """
+    if not name.startswith(PREFIX):
+        return False
+    rest = name[len(PREFIX) :]
+    ids = {iid.lower() for iid in instance_ids}
+    if run_id:
+        match = re.fullmatch(rf"(.+)\.{re.escape(run_id)}(?:\.\d{{10}})?", rest)
+        return bool(match) and (not ids or match.group(1) in ids)
+    return any(rest == iid or rest.startswith(f"{iid}.") for iid in ids)
 
 
 def main(instance_ids=None, predictions_path=None, run_id=None):
@@ -24,20 +46,10 @@ def main(instance_ids=None, predictions_path=None, run_id=None):
         return
 
     client = _docker_client()
-    # containers are named sweb.eval.<instance_id>.<run_id>, so match on the
-    # prefix rather than an exact name
     removed = 0
     for container in client.containers.list(all=True):
         name = container.name
-        if not name.startswith("sweb.eval."):
-            continue
-        rest = name[len("sweb.eval.") :]
-        instance_id, _, container_run = rest.rpartition(".")
-        if not instance_id:  # no run id in the name
-            instance_id, container_run = rest, ""
-        if all_ids and instance_id not in all_ids:
-            continue
-        if run_id and container_run != run_id:
+        if not _matches(name, all_ids, run_id):
             continue
         try:
             container.remove(force=True)

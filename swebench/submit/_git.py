@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 
 class GitError(RuntimeError):
@@ -37,11 +38,23 @@ def has_gh() -> bool:
 
 
 def to_https(url: str) -> str:
-    """A git remote (``git@host:owner/repo.git`` or https) as a browsable https URL."""
+    """A git remote (``git@host:owner/repo.git``, ssh:// or https) as a browsable https
+    URL.
+
+    Credentials in the remote (``https://x-access-token:<token>@host/...``) are dropped:
+    the result is written into the entry's metadata.yaml, which is published.
+    """
     url = url.strip().removesuffix(".git")
     if url.startswith("git@"):
         host, _, path = url[4:].partition(":")
         return f"https://{host}/{path}"
+    parts = urlsplit(url)
+    if parts.scheme in ("http", "https", "ssh"):
+        host = parts.netloc.rpartition("@")[2]
+        if parts.scheme == "ssh":
+            host = host.partition(":")[0]  # the ssh port, not the web server's
+        scheme = "http" if parts.scheme == "http" else "https"
+        return f"{scheme}://{host}{parts.path}"
     return url
 
 
