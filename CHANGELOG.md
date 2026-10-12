@@ -35,6 +35,15 @@ Fixed:
 * A truncated parametrized PASS_TO_PASS id matching one skipped and one failed test
   was graded as maintained, hiding the failure. Candidates that disagree on skip
   versus fail now leave the id unresolved, as other disagreements already did.
+* A timed-out instance whose test output had already reached the end marker was
+  scored resolved by `swebench report`, `swebench submit package` and `submit verify`,
+  although the run itself counted it as an error. Grading checked for a timeout marker
+  the harness never writes; it now recognises the timeout line the harness does write.
+* `swebench report` failed without a Docker daemon although it starts no container.
+  Re-grading no longer connects to Docker.
+* `swebench submit package --trajs` copied the trajectory of any instance whose id
+  began with an instance id in the split (`django__django-12345` for
+  `django__django-1234`), and counted it. Only `<iid>` and `<iid>.*` are now taken.
 
 ## [5.0.1] - 8/17/2026
 

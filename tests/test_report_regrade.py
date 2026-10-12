@@ -106,3 +106,17 @@ def test_a_missing_run_is_an_error_not_an_empty_report(workdir):
     assert result.exit_code == 1
     assert "no such run directory" in result.output
     assert not (workdir / "logs" / "evaluation" / "no-such-run").exists()
+
+
+def test_a_regrade_needs_no_docker_daemon(workdir, monkeypatch):
+    """`swebench report` starts no container, so a missing daemon must not stop it."""
+    import docker
+
+    def no_daemon():
+        raise docker.errors.DockerException("Error while fetching server API version")
+
+    monkeypatch.setattr(run_evaluation, "_docker_client", no_daemon)
+    run = _write_run(workdir, "my-run", "gpt5")
+    result = CliRunner().invoke(app, ["report", "my-run"])
+    assert result.exit_code == 0, result.output
+    assert _results(run)["resolved_ids"] == [IID]

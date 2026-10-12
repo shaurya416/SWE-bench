@@ -451,7 +451,8 @@ def run_instances(
         timeout (int): Timeout for running tests
         rewrite_reports (bool): True if eval run is just to reformat existing report
     """
-    client = _docker_client()
+    # a re-grade reads the saved test output and starts no container
+    client = None if rewrite_reports else _docker_client()
     test_specs = [make_test_spec(instance) for instance in instances]
 
     # run instances in parallel
@@ -765,7 +766,8 @@ def main(
     # run instances locally
     if platform.system() == "Linux":
         resource.setrlimit(resource.RLIMIT_NOFILE, (open_file_limit, open_file_limit))
-    client = _docker_client()
+    # `swebench report` re-grades saved logs, so it must work without a Docker daemon
+    client = None if rewrite_reports else _docker_client()
 
     if not dataset:
         print("No instances to run.")

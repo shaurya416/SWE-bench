@@ -221,6 +221,22 @@ def test_trajs_are_flattened(tmp_path, run, dataset):
     ).is_file()
 
 
+def test_trajs_of_instances_outside_the_split_are_left_out(tmp_path, run, dataset):
+    """An id that merely starts with an instance's id names a different instance."""
+    run("django__django-1234")
+    dataset(["django__django-1234"])
+    src = tmp_path / "mini-out"
+    for iid in ("django__django-1234", "django__django-12345"):
+        (src / iid).mkdir(parents=True)
+        (src / iid / f"{iid}.traj.json").write_text("{}")
+    result = pkg.package_run(
+        run.run_dir, "verified", tmp_path / "out", model="my-model", trajs=src
+    )
+    trajs = tmp_path / "out" / "submission-repo" / "trajs"
+    assert sorted(p.name for p in trajs.iterdir()) == ["django__django-1234.traj.json"]
+    assert result.n_trajs == 1
+
+
 def test_metadata_stub_is_valid_yaml_with_todos(tmp_path, run, dataset):
     run("a__a-1")
     dataset(["a__a-1"])

@@ -50,6 +50,13 @@ SUITE_RAN = re.compile(
 # written after the end-of-output marker so it stays outside the parsed region
 TEST_EXIT_CODE_RE = re.compile(rf"{re.escape(TEST_EXIT_CODE)}:\s*(-?\d+)")
 
+# run_instance ends the test output with this line when the eval script outlives its
+# timeout. TESTS_TIMEOUT is never written, so this is the only trace of a timeout a
+# re-grade sees; without it a run that timed out after the end marker (e.g. a child
+# process holding the output stream open) grades on its log as though it finished,
+# although the run itself counted the instance as an error
+TIMEOUT_TRAILER_RE = re.compile(r"Timeout error: \d+ seconds exceeded\.\s*\Z")
+
 
 # MARK: Utility functions
 def parse_test_exit_code(content: str) -> int | None:
@@ -149,7 +156,7 @@ def get_logs_eval(test_spec: TestSpec, log_fp: str) -> tuple[dict[str, str], boo
                 ],
             )
         )
-        if bad_codes:
+        if bad_codes or TIMEOUT_TRAILER_RE.search(content):
             return {}, False
         elif not (START_TEST_OUTPUT in content and END_TEST_OUTPUT in content):
             # Test patch did not apply (should not happen at all)
